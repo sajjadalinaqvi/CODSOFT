@@ -1,0 +1,183 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+titanic_data= pd.read_csv(r'Dataset/Titanic-Dataset.csv')
+titanic_data.head()
+
+
+import seaborn as sns
+# Selecting only numeric columns
+numeric_columns = titanic_data.select_dtypes(include=[np.number])
+sns.heatmap(numeric_columns.corr(), cmap="viridis")
+plt.show()
+
+
+
+from sklearn.model_selection import StratifiedShuffleSplit
+ssplit = StratifiedShuffleSplit(n_splits = 1, test_size = 0.2)
+for training, testing in ssplit.split(titanic_data, titanic_data[["Survived", "Pclass","Sex"]]):
+    strat_train_set = titanic_data.loc[training]
+    strat_test_set = titanic_data.loc[testing]
+plt.subplot(1,2,1)
+strat_train_set['Survived'].hist()
+strat_train_set['Pclass'].hist()
+
+plt.subplot(1,2,2)
+strat_test_set['Survived'].hist()
+strat_test_set['Pclass'].hist()
+plt.show()
+strat_train_set.info()
+
+
+
+
+
+
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.impute import SimpleImputer
+class ageimputer(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None):
+        return self    
+    def transform(self, X):
+        imputer = SimpleImputer(strategy="mean")
+        X['Age'] = imputer.fit_transform(X[['Age']])
+        return X
+
+from sklearn.preprocessing import OneHotEncoder
+class FeatureEncoder(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None):
+        return self
+    def transform (self, X):
+        encoder=OneHotEncoder()
+        matrix= encoder.fit_transform(X[['Embarked']]).toarray()
+        column_names=["C","S","Q","N"]
+        for i in range(len(matrix.T)):
+            X[column_names[i]] = matrix.T[i]
+        matrix = encoder.fit_transform(X[['Sex']]).toarray()
+        column_names = ["Female","Male"]
+        for i in range(len(matrix.T)):
+            X[column_names[i]]=matrix.T[i]
+        return X
+
+class FeatureDropper(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None):
+        return self
+    def transform(self,X):
+        return X.drop(["Embarked","Name","Ticket","Cabin","Sex","N"],axis=1,errors="ignore")
+
+
+
+from sklearn.pipeline import Pipeline
+pipeline=Pipeline([("AgeImputer",ageimputer()),("FeatureEncoder",FeatureEncoder()),("FeatureDropper",FeatureDropper())])
+strat_train_set = pipeline.fit_transform(strat_train_set)
+strat_train_set
+strat_train_set.info()
+
+
+
+
+from sklearn.preprocessing import StandardScaler
+X= strat_train_set.drop(['Survived'],axis=1)
+y= strat_train_set['Survived']
+scaler = StandardScaler()
+X_data = scaler.fit_transform(X)
+y_data=y.to_numpy()
+
+
+
+
+#1) Classifier Selection: Random Forest
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import GridSearchCV
+
+clf= RandomForestClassifier()
+param_grid = [{"n_estimators": [10,100,200,500]
+              ,"max_depth":[None,5,10],
+              "min_samples_split": [2,3,4]}
+]
+grid_search = GridSearchCV(clf,param_grid,cv=3,scoring ="accuracy",return_train_score=True)
+grid_search.fit(X_data,y_data)
+final_clf = grid_search.best_estimator_
+final_clf
+strat_test_set = pipeline.fit_transform(strat_test_set)
+strat_test_set
+X_test = strat_test_set.drop(['Survived'],axis=1)
+y_test=strat_test_set['Survived']
+
+scaler = StandardScaler()
+X_data_test=scaler.fit_transform(X_test)
+y_data_test=y_test.to_numpy()
+final_clf.score(X_data_test,y_data_test)
+
+
+
+#Make predictions using Random Forest as it is more accurate
+rf_pred = final_clf.predict(X_data_test)
+
+print("Predictions:", rf_pred)
+plt.figure(figsize=(8, 6))
+sns.heatmap(rf_pred.reshape(-1, 1), cmap='coolwarm', cbar=False)
+plt.xlabel('Sample Index')
+plt.ylabel('Prediction')
+plt.title('Random Forest Predictions Heatmap')
+plt.show()
+
+plt.figure(figsize=(8, 6))
+sns.histplot(rf_pred, bins=2, kde=False, color='skyblue')
+plt.xlabel('Predicted Class')
+plt.ylabel('Frequency')
+plt.title('Random Forest Predictions Histogram')
+plt.show()
+
+
+
+
+#2)Classifier Selection: SVC
+from sklearn.svm import SVC
+from sklearn.model_selection import GridSearchCV
+
+clf = SVC()
+
+param_grid = [{"C": [0.1, 1, 10], 
+               "gamma": [0.1, 0.01, 0.001], 
+               "kernel": ["rbf", "linear"]}]
+
+grid_search = GridSearchCV(clf, param_grid, cv=3, scoring="accuracy", return_train_score=True)
+grid_search.fit(X_data, y)
+
+final_clf = grid_search.best_estimator_
+X_test = strat_test_set.drop(['Survived'], axis=1)
+y_test = strat_test_set['Survived']
+
+X_data_test = scaler.transform(X_test)
+
+y_data_test = y_test.to_numpy()
+
+accuracy = final_clf.score(X_data_test, y_data_test)
+print("Accuracy on test set:", accuracy)
+final_data = pipeline.fit_transform(titanic_data)
+final_data
+
+
+#Make predictions using SVC as it is more accurate
+predictions = final_clf.predict(X_data_test)
+accuracy_manual = (predictions  == y_data_test).mean()
+print("Accuracy on test set (manual calculation):", accuracy_manual)
+accuracy_score_method = final_clf.score(X_data_test, y_data_test)
+print("Accuracy on test set (using 'score' method):", accuracy_score_method)
+
+plt.figure(figsize=(8, 6))
+sns.heatmap(predictions.reshape(-1, 1), cmap='coolwarm', cbar=False)
+plt.xlabel('Sample Index')
+plt.ylabel('Prediction')
+plt.title('SVC Predictions Heatmap')
+plt.show()
+
+# Plot histogram
+plt.figure(figsize=(8, 6))
+sns.histplot(predictions, bins=2, kde=False, color='skyblue')
+plt.xlabel('Predicted Class')
+plt.ylabel('Frequency')
+plt.title('SVC Predictions Histogram')
+plt.show()
+

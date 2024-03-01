@@ -12,11 +12,10 @@ This repository serves as a comprehensive collection of tasks, projects, and ass
 Each task directory contains detailed instructions on the task objectives, requirements, and any additional information necessary for completion. Additionally, you'll find the code implementations, datasets, and any relevant documentation within each task's directory.
 
 ## Tasks Pending
-- [x] Task 1
 - [x] Task 2
 - [x] Task 3
 ## Tasks Completed
-
+- [ ] Task 1
 
 ## Contributions
 

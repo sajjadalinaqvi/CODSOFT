@@ -1,0 +1,209 @@
+import pandas as pd
+import numpy as np
+import seaborn as sns
+from matplotlib import pyplot as plt
+import plotly.graph_objects as go
+import plotly.express as px
+colors=['#bacedb']
+from sklearn.model_selection import train_test_split 
+from sklearn.model_selection import cross_val_score
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import accuracy_score, mean_absolute_error, mean_squared_error, r2_score
+
+data = pd.read_csv('Dataset\\IMDb-Movies.csv', encoding='latin1')
+data
+
+data.info()
+
+data.isnull().sum()
+
+#movies in which all values are not available
+nulls = data[data.iloc[:, 1:9].isnull().all(axis=1)]
+nulls.head()
+
+for col in data.select_dtypes(include = "object"):
+    print(f"Name of Column: {col}")
+    print(data[col].unique())
+    print('\n', '**********************************', '\n')
+
+
+# Handling the null values
+data.dropna(subset=['Name', 'Year', 'Duration', 'Rating', 'Votes', 'Director', 'Actor 1', 'Actor 2', 'Actor 3'], inplace=True)
+
+# Extracting only the text part from the Name column
+data['Name'] = data['Name'].str.extract('([A-Za-z\s\'\-]+)')
+
+# Replacing the brackets from year column as observed above
+data['Year'] = data['Year'].astype(str).str.replace(r'[()]', '', regex=True).astype(int)
+
+# Convert 'Duration' to numeric and replacing the min, while keeping only numerical part
+data['Duration'] = pd.to_numeric(data['Duration'].str.replace(r' min', '', regex=True), errors='coerce')
+
+# Splitting the genre by , to keep only unique genres and replacing the null values with mode
+data['Genre'] = data['Genre'].str.split(', ')
+data = data.explode('Genre')
+data['Genre'].fillna(data['Genre'].mode()[0], inplace=True)
+
+# Convert 'Votes' to numeric and replace the , to keep only numerical part
+data['Votes'] = pd.to_numeric(data['Votes'].str.replace(',', ''), errors='coerce')
+
+# Grouping duplicate entries
+duplicate = data.groupby(['Name', 'Year']).filter(lambda x: len(x) > 1)
+duplicate.head()
+
+data = data.drop_duplicates(subset=['Name'], keep=False)
+
+
+fig_year = px.histogram(data, x = 'Year', histnorm='probability density', nbins = 30, color_discrete_sequence = colors)
+fig_year.update_traces(selector=dict(type='histogram'))
+fig_year.update_layout(title='Distribution of Year', title_x=0.5, title_pad=dict(t=20), title_font=dict(size=20), xaxis_title='Year', yaxis_title='Probability Density', xaxis=dict(showgrid=False), yaxis=dict(showgrid=False), bargap=0.02, plot_bgcolor = 'white')
+fig_year.show()
+
+
+
+fig_duration = px.histogram(data, x = 'Duration', histnorm='probability density', nbins = 40, color_discrete_sequence = colors)
+fig_duration.update_traces(selector=dict(type='histogram'))
+fig_duration.update_layout(title='Distribution of Duration', title_x=0.5, title_pad=dict(t=20), title_font=dict(size=20), xaxis_title='Duration', yaxis_title='Probability Density', xaxis=dict(showgrid=False), yaxis=dict(showgrid=False), bargap=0.02, plot_bgcolor = 'white')
+fig_duration.show()
+
+
+
+fig_rating = px.histogram(data, x = 'Rating', histnorm='probability density', nbins = 40, color_discrete_sequence = colors)
+fig_rating.update_traces(selector=dict(type='histogram'))
+fig_rating.update_layout(title='Distribution of Rating', title_x=0.5, title_pad=dict(t=20), title_font=dict(size=20), xaxis_title='Rating', yaxis_title='Probability Density', xaxis=dict(showgrid=False), yaxis=dict(showgrid=False), bargap=0.02, plot_bgcolor = 'white')
+fig_rating.show()
+
+
+
+fig_votes = px.box(data, x = 'Votes', color_discrete_sequence = colors)
+fig_votes.update_layout(title='Distribution of Votes', title_x=0.5, title_pad=dict(t=20), title_font=dict(size=20), xaxis_title='Votes', yaxis_title='Probability Density', xaxis=dict(showgrid=False), yaxis=dict(showgrid=False), plot_bgcolor = 'white')
+fig_votes.show()
+
+
+
+year_avg_rating = data.groupby('Year')['Rating'].mean().reset_index()
+top_5_years = year_avg_rating.nlargest(10, 'Rating')
+fig = px.bar(top_5_years, x='Year', y='Rating', title='Top 10 Years by Average Rating', color = "Rating", color_continuous_scale = "dense")
+fig.update_xaxes(type='category')
+fig.update_layout(xaxis_title='Year', yaxis_title='Average Rating', plot_bgcolor = 'white')
+fig.show()
+
+
+
+# Group data by Year and calculate the average rating
+average_rating_by_year = data.groupby('Year')['Rating'].mean().reset_index()
+# Create the line plot with Plotly Express
+fig = px.line(average_rating_by_year, x='Year', y='Rating', color_discrete_sequence=colors)
+fig.update_layout(title='Are there any trends in ratings across year?', title_x=0.5, title_pad=dict(t=20), title_font=dict(size=20), xaxis_title='Year', yaxis_title='Rating', xaxis=dict(showgrid=False), yaxis=dict(showgrid=False), plot_bgcolor = 'white')
+fig.show()
+
+
+
+
+# Group data by Year and calculate the average rating
+average_rating_by_year = data.groupby('Year')['Votes'].mean().reset_index()
+# Create the line plot with Plotly Express
+fig = px.line(average_rating_by_year, x='Year', y='Votes', color_discrete_sequence=colors)
+fig.update_layout(title='Are there any trends in votes across year?', title_x=0.5, title_pad=dict(t=20), title_font=dict(size=20), xaxis_title='Year', yaxis_title='Votes', xaxis=dict(showgrid=False), yaxis=dict(showgrid=False), plot_bgcolor = 'white')
+fig.show()
+
+
+
+# Group data by Year and calculate the average rating
+average_rating_by_year = data.groupby(['Year', 'Genre'])['Rating'].mean().reset_index()
+
+# Get the top 3 genres
+top_3_genres = data['Genre'].value_counts().head(3).index
+
+# Filter the data to include only the top 3 genres
+average_rating_by_year = average_rating_by_year[average_rating_by_year['Genre'].isin(top_3_genres)]
+
+# Create the line plot with Plotly Express
+fig = px.line(average_rating_by_year, x='Year', y='Rating', color = "Genre", color_discrete_sequence=['#559C9E', '#0B1F26', '#00CC96'])
+
+# Customize the layout
+fig.update_layout(title='Average Rating by Year for Top 3 Genres', xaxis_title='Year', yaxis_title='Average Rating', xaxis=dict(showgrid=False), yaxis=dict(showgrid=False), plot_bgcolor='white')
+
+# Show the plot
+fig.show()
+
+
+
+fig_dur_rat = px.scatter(data, x = 'Duration', y = 'Rating', trendline='ols', color = "Rating", color_continuous_scale = "dense")
+fig_dur_rat.update_layout(title='Does length of movie have any impact on rating?', title_x=0.5, title_pad=dict(t=20), title_font=dict(size=20), xaxis_title='Duration of Movie in Minutes', yaxis_title='Rating of a movie', xaxis=dict(showgrid=False), yaxis=dict(showgrid=False), plot_bgcolor = 'white')
+fig_dur_rat.show()
+
+
+
+fig_dur_votes = px.scatter(data, x = 'Duration', y = 'Votes', trendline='ols', color = "Votes", color_continuous_scale = "dense")
+fig_dur_votes.update_layout(title='Does length of movie have any impact on Votes?', title_x=0.5, title_pad=dict(t=20), title_font=dict(size=20), xaxis_title='Duration of Movie in Minutes', yaxis_title='Votes of a movie', xaxis=dict(showgrid=False), yaxis=dict(showgrid=False), plot_bgcolor = 'white')
+fig_dur_votes.show()
+
+
+
+fig_rat_votes = px.scatter(data, x = 'Rating', y = 'Votes', trendline='ols', color = "Votes", color_continuous_scale = "dense")
+fig_rat_votes.update_layout(title='Does Ratings of movie have any impact on Votes?', title_x=0.5, title_pad=dict(t=20), title_font=dict(size=20), xaxis_title='Ratings of Movies', yaxis_title='Votes of movies', xaxis=dict(showgrid=False), yaxis=dict(showgrid=False), plot_bgcolor = 'white')
+fig_rat_votes.show()
+
+
+
+#data.drop('Name', axis = 1, inplace = True)
+
+genre_mean_rating = data.groupby('Genre')['Rating'].transform('mean')
+data['Genre_mean_rating'] = genre_mean_rating
+
+director_mean_rating = data.groupby('Director')['Rating'].transform('mean')
+data['Director_encoded'] = director_mean_rating
+
+actor1_mean_rating = data.groupby('Actor 1')['Rating'].transform('mean')
+data['Actor1_encoded'] = actor1_mean_rating
+
+actor2_mean_rating = data.groupby('Actor 2')['Rating'].transform('mean')
+data['Actor2_encoded'] = actor2_mean_rating
+
+actor3_mean_rating = data.groupby('Actor 3')['Rating'].transform('mean')
+data['Actor3_encoded'] = actor3_mean_rating
+
+# Keeping the predictor and target variable
+
+X = data[[ 'Year', 'Votes', 'Duration', 'Genre_mean_rating','Director_encoded','Actor1_encoded', 'Actor2_encoded', 'Actor3_encoded']]
+y = data['Rating']
+
+# Splitting the dataset into training and testing parts
+
+X_train,X_test,y_train,y_test = train_test_split(X,y,test_size=0.2,random_state=42)
+
+#Linear Regression
+lr = LinearRegression()
+lr.fit(X_train,y_train)
+lr_pred = lr.predict(X_test)
+
+#Randon Forest Regressor
+rf = RandomForestRegressor()
+rf.fit(X_train,y_train)
+rf_pred = rf.predict(X_test)
+
+print('The performance evaluation of Logistic Regression is below: ', '\n')
+print('Mean squared error: ',mean_squared_error(y_test, lr_pred))
+print('Mean absolute error: ',mean_absolute_error(y_test, lr_pred))
+print('R2 score: ',r2_score(y_test, lr_pred))
+print('\n', '='*100, '\n')
+
+print('The performance evaluation of Random Forest Regressor is below: ', '\n')
+print('Mean squared error: ',mean_squared_error(y_test, rf_pred))
+print('Mean absolute error: ',mean_absolute_error(y_test, rf_pred))
+print('R2 score: ',r2_score(y_test, rf_pred))
+
+
+X.head()
+
+
+newdata = {'Year': [2016], 'Votes': [58], 'Duration': [121], 'Genre_mean_rating': [4.5], 'Director_encoded': [5.8], 'Actor1_encoded': [5.9], 'Actor2_encoded': [5.9], 'Actor3_encoded': [5.900]}
+df = pd.DataFrame(newdata)
+
+# Predict the movie rating
+predicted_rating = rf.predict(df)
+
+# Display the predicted rating
+print("Predicted Rating:", predicted_rating[0])

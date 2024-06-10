@@ -11,12 +11,10 @@ This repository serves as a comprehensive collection of tasks, projects, and ass
 
 Each task directory contains detailed instructions on the task objectives, requirements, and any additional information necessary for completion. Additionally, you'll find the code implementations, datasets, and any relevant documentation within each task's directory.
 
-## Tasks Pending
-- [ ] Task 2
-- [ ] Task 3
 ## Tasks Completed
-- [x] Task 1
-
+- [x] Task 1: Credit Card Fraud Detection
+- [x] Task 2: IMDB Movie Rating Predictor
+- [x] Task 3: Titanic Survival Predictor
 ## Contributions
 
 Contributions, suggestions, and feedback are welcome! If you have any improvements or suggestions for the tasks, feel free to open an issue or pull request.
